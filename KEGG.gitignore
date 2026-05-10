@@ -1,0 +1,12 @@
+# Virtual Environment
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Secret keys (αν έχεις API keys σε αρχείο .env)
+.env
+
+# Metadata συστήματος
+.DS_Store

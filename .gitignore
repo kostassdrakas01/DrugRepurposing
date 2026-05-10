@@ -8,11 +8,11 @@ venv/
 ENV/
 .env
 
-# Results
-results/
-*.pdf
-*.png
-*.html
+# Results (Included as requested)
+# results/
+# *.pdf
+# *.png
+# *.html
 
 # IDEs
 .vscode/
