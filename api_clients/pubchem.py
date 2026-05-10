@@ -42,24 +42,39 @@ class PubChemClient:
 
     def _parse_annotations(self, data):
         """Helper to parse PUG View JSON for gene symbols or protein names."""
+        import re
         symbols = []
         try:
-            # Navigate the nested JSON structure of PUG View
-            # This is complex because PUG View is deeply nested
             section = data.get("Record", {}).get("Section", [])
             for s in section:
-                for info in s.get("Information", []):
-                    value = info.get("Value", {})
-                    # Look for StringWithMarkup
-                    for swm in value.get("StringWithMarkup", []):
-                        string = swm.get("String")
-                        if string:
-                            # Heuristic: PubChem often lists gene symbols in parentheses or as standalone strings
-                            # We'll collect strings and let the analyst filter them later
-                            symbols.append(string)
+                # Recursively search for Information blocks
+                symbols.extend(self._extract_from_section(s))
         except Exception:
             pass
-        return symbols
+
+        # Refine symbols: look for patterns like "Gene: PTGS1", "Symbol: PTGS1", or just standalone symbols
+        refined = []
+        for s in symbols:
+            # Match common gene symbol patterns (3-10 uppercase letters/numbers)
+            match = re.search(r'\b([A-Z][A-Z0-9]{2,9})\b', s)
+            if match:
+                refined.append(match.group(1))
+
+        return list(set(refined))
+
+    def _extract_from_section(self, section):
+        found = []
+        for info in section.get("Information", []):
+            value = info.get("Value", {})
+            for swm in value.get("StringWithMarkup", []):
+                string = swm.get("String")
+                if string:
+                    found.append(string)
+
+        # Subsections
+        for subs in section.get("Section", []):
+            found.extend(self._extract_from_section(subs))
+        return found
 
 if __name__ == "__main__":
     client = PubChemClient()

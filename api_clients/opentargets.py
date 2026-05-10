@@ -7,7 +7,7 @@ class OpenTargetsClient:
         self.session = requests.Session()
 
     def get_targets_by_chembl_id(self, chembl_id):
-        """Fetches targets for a ChEMBL ID using Open Targets GraphQL API."""
+        """Fetches targets and action types for a ChEMBL ID using Open Targets GraphQL API."""
         query = """
         query drug($chemblId: String!) {
           drug(chemblId: $chemblId) {
@@ -15,7 +15,7 @@ class OpenTargetsClient:
             name
             mechanismsOfAction {
               rows {
-                targetName
+                actionType
                 targets {
                   id
                   approvedSymbol
@@ -34,11 +34,20 @@ class OpenTargetsClient:
             drug_data = data.get("data", {}).get("drug")
             if drug_data and drug_data.get("mechanismsOfAction"):
                 for row in drug_data["mechanismsOfAction"].get("rows", []):
+                    action_type = row.get("actionType", "UNKNOWN")
                     for target in row.get("targets", []):
                         symbol = target.get("approvedSymbol")
                         if symbol:
-                            targets.append(symbol)
-        return list(set(targets))
+                            targets.append({"symbol": symbol, "action_type": action_type})
+
+        # Deduplicate
+        unique_targets = {}
+        for t in targets:
+            sym = t["symbol"]
+            if sym not in unique_targets:
+                unique_targets[sym] = t["action_type"]
+
+        return [{"symbol": sym, "action_type": act} for sym, act in unique_targets.items()]
 
     def get_indications(self, chembl_id):
         """Fetches therapeutic indications for a ChEMBL ID."""
