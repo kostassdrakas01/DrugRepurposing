@@ -49,6 +49,9 @@ class Visualizer:
         
         data = []
         for p in {**analysis.pathways, **analysis.appendix_pathways}.values():
+            # Find which targets are in this pathway
+            involved_targets = [t.name for t in analysis.targets if p.id in t.pathways]
+            
             data.append({
                 "pathway_id": p.id,
                 "pathway_name": p.name.split(" - ")[0],
@@ -57,12 +60,14 @@ class Visualizer:
                 "discovery_score": p.discovery_score,
                 "z_score": p.z_score,
                 "surprise_score": p.surprise_score,
-                "is_significant": p.discovery_score >= 0.80
+                "is_significant": p.discovery_score >= 0.80,
+                "target_count": len(involved_targets),
+                "targets": ";".join(involved_targets)
             })
         
         df = pd.DataFrame(data)
         df.to_csv(filename, index=False)
-        self.console.print(f"[bold green]Raw data exported to {filename} for R analysis.[/bold green]")
+        self.console.print(f"[bold green]Enhanced analytical data exported to {filename}[/bold green]")
 
     def _export_markdown(self, analysis: DrugAnalysis, filename: str):
         """Generates a high-fidelity Markdown report with simplified human-readable terminology."""
