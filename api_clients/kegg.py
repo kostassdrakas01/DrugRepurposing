@@ -14,6 +14,7 @@ class KEGGClient:
             "cpd:C00008": "ADP"
         }
         self.kgml_cache = {}
+        self.gene_pathways_cache = {}
 
     def _get(self, endpoint: str, operation: str, argument: str) -> str:
         """Helper for KEGG REST API calls with timeouts."""
@@ -28,12 +29,17 @@ class KEGGClient:
 
     def get_pathways_for_gene(self, kegg_gene_id: str) -> List[str]:
         """Finds pathways associated with a KEGG Gene ID."""
+        if kegg_gene_id in self.gene_pathways_cache:
+            return self.gene_pathways_cache[kegg_gene_id]
+
         result = self._get("pathway", "link", f"pathway/{kegg_gene_id}")
         pathways = []
         for line in result.strip().split("\n"):
             if "\t" in line:
                 pathway_id = line.split("\t")[1].replace("path:", "")
                 pathways.append(pathway_id)
+
+        self.gene_pathways_cache[kegg_gene_id] = pathways
         return pathways
 
     def get_pathway_category(self, pathway_id: str) -> str:
