@@ -46,28 +46,33 @@ class DrugPathwayAnalyzer:
 
         # 2. Get Targets
         print(f"[*] Resolving molecular targets...")
-        target_symbols = []
+        target_data_raw = [] # List of {"symbol": str, "action_type": str}
         if chembl_id:
-            target_symbols = self.opentargets.get_targets_by_chembl_id(chembl_id)
-        if not target_symbols and cid:
-            target_symbols = self.pubchem.get_protein_targets(cid)
+            target_data_raw = self.opentargets.get_targets_by_chembl_id(chembl_id)
+            if not target_data_raw:
+                target_data_raw = self.chembl.get_protein_targets(chembl_id)
+
+        if not target_data_raw and cid:
+            symbols = self.pubchem.get_protein_targets(cid)
+            target_data_raw = [{"symbol": s, "action_type": "UNKNOWN"} for s in symbols]
         
         # 2b. High-Affinity Neighbor Search (Added feature)
         # If a drug has only one primary target, automatically pull top 5 proteins with score > 0.9
-        all_target_data = [] # List of (symbol, is_primary)
-        for s in target_symbols:
-            all_target_data.append((s, True))
+        all_target_data = [] # List of (symbol, is_primary, action_type)
+        for t in target_data_raw:
+            all_target_data.append((t["symbol"], True, t["action_type"]))
         
-        if len(target_symbols) == 1:
-            print(f"[*] Single target detected ({target_symbols[0]}). Searching for high-affinity neighbors (String-DB)...")
-            interactors = self.opentargets.get_interactors(target_symbols[0], min_score=0.7, limit=50)
+        if len(all_target_data) == 1:
+            symbol = all_target_data[0][0]
+            print(f"[*] Single target detected ({symbol}). Searching for high-affinity neighbors (String-DB)...")
+            interactors = self.opentargets.get_interactors(symbol, min_score=0.7, limit=50)
             for interactor in interactors:
-                all_target_data.append((interactor, False))
+                all_target_data.append((interactor, False, "UNKNOWN"))
         
         # 3. Process Targets and Map to Pathways with GTEx Masking
         pathway_ids_to_process = set()
         
-        for symbol, is_primary in all_target_data:
+        for symbol, is_primary, action_type in all_target_data:
             # GTEx Masking: If tissues are specified, check if gene is expressed in ANY of them
             if self.tissue_mask:
                 # Check all tissues; if TPM > 10 in any, consider it expressed (per user request)
@@ -81,7 +86,7 @@ class DrugPathwayAnalyzer:
 
             kegg_gene_ids = self.mygene.get_kegg_id(symbol)
             for kge in kegg_gene_ids:
-                target_obj = Target(name=symbol, kegg_id=kge, is_primary=is_primary)
+                target_obj = Target(name=symbol, kegg_id=kge, is_primary=is_primary, action_type=action_type)
                 pathways = self.kegg.get_pathways_for_gene(kge)
                 target_obj.pathways = pathways
                 analysis.targets.append(target_obj)
@@ -116,6 +121,9 @@ class DrugPathwayAnalyzer:
                 url=self.kegg.get_map_url(pid, [t.kegg_id for t in analysis.targets if pid in t.pathways])
             )
             
+            # Predictive Polarity Calculation
+            pathway_obj.polarity = self._calculate_pathway_polarity(pid, analysis.targets)
+
             # Surprise Score Logic (Refactored: Indication-Specific & Hierarchy Aware)
             pathway_obj.surprise_score = self._calculate_surprise_score(
                 p_name, p_category, drug_category, indication_keywords
@@ -350,32 +358,67 @@ class DrugPathwayAnalyzer:
         kgml = self.kegg.get_kgml_pathway(pathway_id)
         if not kgml: return "Neutral"
         
-        target_ids = [t.kegg_id for t in targets if pathway_id in t.pathways]
+        # Map KEGG ID to its action type for this drug
+        target_impacts = {}
+        for t in targets:
+            if pathway_id in t.pathways and t.kegg_id:
+                impact = -1.0 # Default to inhibition if unknown
+                if "ACTIVATOR" in t.action_type.upper() or "AGONIST" in t.action_type.upper() or "STIMULATOR" in t.action_type.upper():
+                    impact = 1.0
+                elif "INHIBITOR" in t.action_type.upper() or "ANTAGONIST" in t.action_type.upper() or "BLOCKER" in t.action_type.upper():
+                    impact = -1.0
+                target_impacts[t.kegg_id] = impact
+
         entry_map = {entry.id: entry for entry in kgml.entries.values()}
-        
-        drug_impact = -1.0 # Assumption: Drugs inhibit their primary targets (-1)
-        
         pathway_effects = []
+
         for relation in kgml.relations:
             s_id = relation.entry1.id if hasattr(relation.entry1, "id") else relation.entry1
             s_entry = entry_map.get(s_id)
             if not s_entry: continue
             
-            if any(tid in s_entry.name for tid in target_ids):
-                subtypes = [s[0] for s in relation.subtypes]
-                
-                # Rigid Sign Enforcement: (Inhibition [-1] x Interaction [Sign])
-                interaction_sign = 1.0
-                if "inhibition" in subtypes: interaction_sign = -1.0
-                elif "activation" in subtypes: interaction_sign = 1.0
-                
-                # Final effect: Drug (-) * Interaction
-                final_effect = drug_impact * interaction_sign
-                pathway_effects.append(final_effect)
+            # Check if this source entry matches any of our targets
+            for tid, drug_impact in target_impacts.items():
+                if tid in s_entry.name:
+                    subtypes = [s[0] for s in relation.subtypes]
+
+                    # Rigid Sign Enforcement
+                    interaction_sign = 1.0
+                    if "inhibition" in subtypes: interaction_sign = -1.0
+                    elif "activation" in subtypes: interaction_sign = 1.0
+
+                    # Final effect: Drug Impact * Interaction
+                    final_effect = drug_impact * interaction_sign
+                    pathway_effects.append(final_effect)
         
         avg_impact = sum(pathway_effects) / len(pathway_effects) if pathway_effects else 0
-        if avg_impact > 0.1: return "Activated (Disinhibition)" # (-1 * -1 = +1)
-        if avg_impact < -0.1: return "Inhibited"                 # (-1 * +1 = -1)
+        if avg_impact > 0.1:
+            # Check if it's disinhibition (Drug inhibitor [-1.0] * Interaction inhibitor [-1.0] = +1.0)
+            # or direct activation (Drug activator [1.0] * Interaction activator [1.0] = +1.0)
+
+            # We can't easily distinguish just from pathway_effects which is which if they both result in +1.0
+            # Let's refine the logic to track if any inhibitor was involved in the activation
+            is_disinhibition = False
+            for tid, drug_impact in target_impacts.items():
+                if drug_impact < 0: # Drug is an inhibitor
+                    # If this drug inhibitor contributed to a positive effect, it's disinhibition
+                    # (since it must have inhibited an inhibitor)
+                    is_disinhibition = True
+                    break
+
+            return "Activated (Disinhibition)" if is_disinhibition else "Activated"
+        if avg_impact < -0.1: return "Inhibited"
+
+        # If no direct relation found, check if target is just 'in' the pathway
+        if not pathway_effects and target_impacts:
+            # Heuristic: if we only have activators, say Activated. If only inhibitors, say Inhibited.
+            impacts = list(target_impacts.values())
+            if all(i > 0 for i in impacts): return "Activated (Predicted)"
+            if all(i < 0 for i in impacts): return "Inhibited (Predicted)"
+            # Mixed
+            if any(i > 0 for i in impacts) and any(i < 0 for i in impacts):
+                return "Complex (Mixed Targets)"
+
         return "Neutral"
 
     def _calculate_surprise_score(self, pathway_name: str, pathway_category: str, drug_category: str, indication_keywords: set) -> float:
@@ -392,14 +435,18 @@ class DrugPathwayAnalyzer:
         
         # Rule 1: The "Exact Match" Indication Penalty (Crucial for high fidelity)
         # Directive Rule: If names match drug classification or primary mechanism, force score to 0.10
-        is_indication = any(kw in p_name_lower for kw in indication_keywords if kw and len(kw) > 3)
-        if is_indication:
-            return 0.10 
+        # Refined to use word boundaries to avoid partial matches like "car" in "cardiovascular"
+        import re
+        for kw in indication_keywords:
+            if kw and len(kw) > 3:
+                if re.search(rf'\b{re.escape(kw)}\b', p_name_lower):
+                    return 0.10
         
         # Additional check for drug name itself in pathway (e.g., "Metformin signaling" or similar)
         # Or generic mechanism terms associated with the drug
-        if any(kw in p_name_lower for kw in [drug_category.lower()] if kw and len(kw) > 4):
-            return 0.10
+        if drug_category != "Unknown":
+            if re.search(rf'\b{re.escape(drug_category.lower())}\b', p_name_lower):
+                return 0.10
         
         # Rule 2: High Sensitivity for Key Hierarchies (Technical Mandate Section 2)
         base_score = 0.81

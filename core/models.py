@@ -8,6 +8,7 @@ class Target:
     pathways: List[str] = field(default_factory=list)
     is_primary: bool = True # True for Primary, False for Predicted Sub-Target
     interaction_label: str = "" # e.g., '+p', '-i'
+    action_type: str = "UNKNOWN" # e.g., 'INHIBITOR', 'ACTIVATOR'
 
 @dataclass
 class Pathway:

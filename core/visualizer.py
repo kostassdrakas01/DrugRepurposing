@@ -116,8 +116,9 @@ class Visualizer:
             f.write("| Known Mechanism | Logic | Evidence |\n")
             f.write("|---|---|---|\n")
             # Logic: Pathways with low discovery score or exact matches
-            for pid, p in analysis.appendix_pathways.items():
-                if p.discovery_score < 0.2:
+            # Also include pathways that were explicitly marked as indications in surprise score
+            for pid, p in {**analysis.pathways, **analysis.appendix_pathways}.items():
+                if p.surprise_score <= 0.15:
                     clean_name = p.name.split(" - ")[0]
                     f.write(f"| {clean_name} | Primary Indication | High Confidence |\n")
             f.write("\n")
