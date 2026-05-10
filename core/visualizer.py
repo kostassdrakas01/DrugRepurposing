@@ -4,6 +4,7 @@ from rich.panel import Panel
 from core.models import DrugAnalysis
 import datetime
 import os
+import pandas as pd
 
 class Visualizer:
     def __init__(self):
@@ -40,6 +41,28 @@ class Visualizer:
         
         self._export_markdown(analysis, filename)
         self.console.print(f"[bold green]Systemic Discovery Report exported to {filename}[/bold green]")
+
+    def export_csv(self, analysis: DrugAnalysis, filename: str):
+        """Exports analysis data to CSV for R/Excel processing."""
+        if not filename.lower().endswith(".csv"):
+            filename += ".csv"
+        
+        data = []
+        for p in {**analysis.pathways, **analysis.appendix_pathways}.values():
+            data.append({
+                "pathway_id": p.id,
+                "pathway_name": p.name.split(" - ")[0],
+                "category": p.category,
+                "polarity": p.polarity,
+                "discovery_score": p.discovery_score,
+                "z_score": p.z_score,
+                "surprise_score": p.surprise_score,
+                "is_significant": p.discovery_score >= 0.80
+            })
+        
+        df = pd.DataFrame(data)
+        df.to_csv(filename, index=False)
+        self.console.print(f"[bold green]Raw data exported to {filename} for R analysis.[/bold green]")
 
     def _export_markdown(self, analysis: DrugAnalysis, filename: str):
         """Generates a high-fidelity Markdown report with simplified human-readable terminology."""

@@ -1,0 +1,25 @@
+pathway_id,pathway_name,category,polarity,discovery_score,z_score,surprise_score,is_significant
+hsa04370,VEGF signaling pathway,Signal Transduction,Inhibited (Predicted),0.9015326109610763,4.964247290637857,0.81,True
+hsa04921,Oxytocin signaling pathway,Signal Transduction,Inhibited (Predicted),0.8956294193160215,3.9581140290126386,0.81,True
+hsa04064,NF-kappa B signaling pathway,Signal Transduction,Inhibited (Predicted),0.8827972216349085,3.068968987334386,0.81,True
+hsa04923,Regulation of lipolysis in adipocytes,Signal Transduction,Inhibited (Predicted),0.9008241981055551,4.776915014207789,0.81,True
+hsa04723,Retrograde endocannabinoid signaling,Nervous System,Inhibited (Predicted),0.9834702335995598,5.786428831385525,0.9700000000000001,True
+hsa04148,Efferocytosis,Signal Transduction,Inhibited,0.8748837579079483,2.7474207099066312,0.81,True
+hsa05010,Alzheimer disease,Neurodegenerative Diseases,Inhibited (Predicted),0.9409034666404448,2.335899920403579,0.9700000000000001,True
+hsa05140,Leishmaniasis,Human Diseases,Inhibited,0.9800572831040504,4.606758320361751,0.9700000000000001,True
+hsa04726,Serotonergic synapse,Nervous System,Activated (Disinhibition),0.9753107900072309,3.924026560879234,0.9700000000000001,True
+hsa04625,C-type lectin receptor signaling pathway,Signal Transduction,Inhibited (Predicted),0.8857779563066184,3.2193478047310937,0.81,True
+hsa04657,IL-17 signaling pathway,Signal Transduction,Inhibited (Predicted),0.8894386500715423,3.438200526759087,0.81,True
+hsa05204,Chemical carcinogenesis,Human Diseases,Inhibited (Predicted),0.9847509417714033,7.604178417933438,0.9700000000000001,True
+hsa04668,TNF signaling pathway,Signal Transduction,Inhibited (Predicted),0.8752802578392419,2.761517266068762,0.81,True
+hsa05165,Human papillomavirus infection,Human Diseases,Inhibited,0.5044915896118168,2.3012822561700985,0.1,False
+hsa00590,Arachidonic acid metabolism,Metabolism,Inhibited,0.5481410865807623,5.59089120947001,0.1,False
+hsa05206,MicroRNAs in cancer,Human Diseases,Inhibited (Predicted),0.46369246561592137,1.5672059622639807,0.1,False
+hsa05200,Pathways in cancer,Human Diseases,Inhibited (Predicted),0.4601608308369261,1.518528290689225,0.1,False
+hsa04913,Ovarian steroidogenesis,Signal Transduction,Inhibited (Predicted),0.5492624364275399,6.517534876743293,0.1,False
+hsa04611,Platelet activation,Signal Transduction,Inhibited,0.5322543147494193,3.3023291969701867,0.1,False
+hsa05163,Human cytomegalovirus infection,Human Diseases,Inhibited,0.5080848701154322,2.3914076160300244,0.1,False
+hsa05167,Kaposi sarcoma-associated herpesvirus infection,Human Diseases,Inhibited (Predicted),0.5109693205003233,2.468983500173715,0.1,False
+hsa05022,Pathways of neurodegeneration,Neurodegenerative Diseases,Inhibited (Predicted),0.47627187183962366,1.7546929555968054,0.1,False
+hsa05222,Small cell lung cancer,Human Diseases,Inhibited (Predicted),0.5422077045458938,4.145765307874636,0.1,False
+hsa01100,Metabolic pathways,Metabolism,Inhibited (Predicted),0.7059330580680989,0.24873905940681673,0.85,False

@@ -42,6 +42,10 @@ def main():
             export_path = os.path.join("results", export_path)
         
         visualizer.export_report(analysis, export_path)
+        
+        # 4. Export Raw Data for R
+        csv_path = export_path.replace(".md", ".csv")
+        visualizer.export_csv(analysis, csv_path)
             
     except Exception as e:
         import traceback
