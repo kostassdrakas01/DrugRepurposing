@@ -8,6 +8,7 @@ class GTExClient:
     def __init__(self):
         self.session = requests.Session()
         self.gene_id_cache = {}
+        self.expression_cache = {}
 
     def get_gencode_id(self, gene_symbol: str) -> Optional[str]:
         """Resolves a gene symbol to a Gencode ID."""
@@ -29,6 +30,10 @@ class GTExClient:
 
     def get_expression(self, gene_symbol: str, tissue: str) -> float:
         """Returns the median expression (TPM) for a gene in a specific tissue."""
+        cache_key = (gene_symbol, tissue)
+        if cache_key in self.expression_cache:
+            return self.expression_cache[cache_key]
+
         gencode_id = self.get_gencode_id(gene_symbol)
         if not gencode_id:
             return 0.0
@@ -43,7 +48,12 @@ class GTExClient:
             if response.status_code == 200:
                 data = response.json().get("data", [])
                 if data:
-                    return data[0].get("median", 0.0)
+                    median = data[0].get("median", 0.0)
+                    self.expression_cache[cache_key] = median
+                    return median
+                else:
+                    self.expression_cache[cache_key] = 0.0
+                    return 0.0
         except Exception:
             pass
         return 0.0
