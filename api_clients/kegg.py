@@ -125,14 +125,33 @@ class KEGGClient:
         return name
 
     def get_pathway_info(self, pathway_id: str) -> Dict:
-        """Fetches metadata for a pathway."""
-        result = self._get("get", "get", pathway_id)
-        info = {"compounds": [], "genes": []}
-        for line in result.split("\n"):
-            if line.startswith("NAME"):
-                info["name"] = line.replace("NAME", "").strip()
-            if line.startswith("DESCRIPTION"):
-                info["description"] = line.replace("DESCRIPTION", "").strip()
+        """Fetches metadata for a pathway, using a pre-fetched cache for speed and reliability."""
+        # Prefetch all human pathway names if cache is empty
+        if not hasattr(self, "pathway_names_cache") or not self.pathway_names_cache:
+            self.pathway_names_cache = {}
+            raw = self._get("list", "list", "pathway/hsa")
+            for line in raw.strip().split("\n"):
+                if "\t" in line:
+                    pid, name = line.split("\t")
+                    pid = pid.replace("path:", "")
+                    # Clean name: "Breast cancer - Homo sapiens (human)" -> "Breast cancer"
+                    clean_name = name.split(" - ")[0].strip()
+                    self.pathway_names_cache[pid] = clean_name
+
+        info = {"compounds": [], "genes": [], "name": self.pathway_names_cache.get(pathway_id, pathway_id), "description": ""}
+        
+        # Only fetch details if name is missing or we need description
+        if pathway_id not in self.cache:
+            result = self._get("get", "get", pathway_id)
+            for line in result.split("\n"):
+                if line.startswith("NAME") and not info["name"]:
+                    info["name"] = line.replace("NAME", "").strip().split(" - ")[0]
+                if line.startswith("DESCRIPTION"):
+                    info["description"] = line.replace("DESCRIPTION", "").strip()
+            self.cache[pathway_id] = info
+        else:
+            info = self.cache[pathway_id]
+            
         return info
 
     def get_kgml_pathway(self, pathway_id: str):
