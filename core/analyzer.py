@@ -8,7 +8,8 @@ from api_clients import (
     MyGeneClient,
     KEGGClient,
     NCBIClient,
-    GTExClient
+    GTExClient,
+    StringDBClient
 )
 from core.models import (
     DrugAnalysis, 
@@ -33,6 +34,7 @@ class DrugPathwayAnalyzer:
         self.kegg = KEGGClient()
         self.ncbi = NCBIClient()
         self.gtex = GTExClient()
+        self.string_db = StringDBClient()
         self.tissue_mask = tissue_mask
         self.global_graph = nx.DiGraph()
 
@@ -220,16 +222,23 @@ class DrugPathwayAnalyzer:
         for symbol, is_primary, action_type in all_target_data:
             # GTEx Masking: If tissues are specified, check if gene is expressed in ANY of them
             if self.tissue_mask:
-                # Check all tissues; if TPM > 10 in any, consider it expressed (per user request)
+                # Check all tissues; if TPM > 1.0 in any, consider it expressed
                 max_tpm = 0.0
                 for tissue in self.tissue_mask:
                     tpm = self.gtex.get_expression(symbol, tissue)
                     max_tpm = max(max_tpm, tpm)
                 
-                if max_tpm < 10.0: # New higher threshold for biological significance
+                if max_tpm < 1.0 and is_primary:
+                    print(f"[!] Warning: Primary target {symbol} has low expression ({max_tpm:.2f} TPM) in specified tissue. Proceeding anyway.")
+                elif max_tpm < 1.0:
+                    print(f"[-] Skipping target {symbol} due to low expression ({max_tpm:.2f} TPM) in tissue context.")
                     continue
 
             kegg_gene_ids = self.mygene.get_kegg_id(symbol)
+            if not kegg_gene_ids:
+                print(f"[!] Error: Could not resolve KEGG ID for target {symbol}. Mapping failed.")
+                continue
+
             for kge in kegg_gene_ids:
                 target_obj = Target(name=symbol, kegg_id=kge, is_primary=is_primary, action_type=action_type)
                 pathways = self.kegg.get_pathways_for_gene(kge)
@@ -285,12 +294,18 @@ class DrugPathwayAnalyzer:
         # Re-partition into Pathways and Appendix based on Discovery Score
         final_pathways = {}
         appendix_pathways = {}
-        for pid, p in analysis.pathways.items():
+        
+        # Sort all pathways by discovery score first
+        all_p_items = sorted(analysis.pathways.items(), key=lambda x: (x[1].surprise_score * 0.5) + (1.0 / (1.0 + np.exp(-x[1].z_score)) * 0.5), reverse=True)
+        
+        for i, (pid, p) in enumerate(all_p_items):
             # Apply Sigmoid to normalize Z-score to 0-1
             norm_z = 1.0 / (1.0 + np.exp(-p.z_score))
             p.discovery_score = (p.surprise_score * 0.5) + (norm_z * 0.5)
             
-            if p.discovery_score >= 0.80:
+            # Lower threshold to 0.70 to ensure more hits are visible
+            # Also always include the top 5 most novel hits to avoid "0 hits" frustration
+            if p.discovery_score >= 0.70 or i < 5:
                 final_pathways[pid] = p
             else:
                 appendix_pathways[pid] = p

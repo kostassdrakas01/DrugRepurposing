@@ -5,6 +5,7 @@ from .ncbi import NCBIClient
 from .opentargets import OpenTargetsClient
 from .pubchem import PubChemClient
 from .gtex import GTExClient
+from .string_db import StringDBClient
 
 __all__ = [
     "ChEMBLClient",
@@ -14,4 +15,5 @@ __all__ = [
     "OpenTargetsClient",
     "PubChemClient",
     "GTExClient",
+    "StringDBClient",
 ]

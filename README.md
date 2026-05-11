@@ -9,46 +9,75 @@ DrugRepurposing is a high-fidelity predictive engine designed to uncover novel t
 
 ## Key Features
 
-*   **Multi-Omic Mapping**: Integrates data from KEGG, ChEMBL, OpenTargets, PubChem, and MyGene.
-*   **Statistical Significance (Z-Scores)**: Uses 1,000 Monte Carlo permutations to neutralize hub-bias and ensure discoveries are statistically significant (p-value equivalent metrics).
-*   **Mechanism Narratives**: Automatically synthesizes biological narratives explaining how specific target-bridge-pathway interactions drive systemic effects.
-*   **Tissue-Specific Context (GTEx)**: Apply GTEx expression masks (TPM > 10.0) to filter results based on real-world tissue biology.
-*   **High-Affinity Neighbor Expansion**: Automatically integrates high-confidence interactors (String-DB) for single-target drugs to increase discovery breadth.
-*   **Functional Polarity Prediction**: Predicts whether a drug likely activates (via disinhibition) or inhibits specific downstream pathways.
-*   **Interactive Visualizations**: Generates systemic ripple flows (Sankey diagrams) and hub-and-spoke network graphs automatically.
+KEGG-ID is a high-fidelity drug discovery and repurposing engine that maps molecular entities to systemic biological pathways. It integrates **OpenTargets**, **String-DB**, **KEGG**, **MyGene**, **PubChem**, and **GTEx** to provide a multi-dimensional view of drug-target-pathway interactions.
+
+## 🚀 Discovery Engine V2 Features
+
+- **Multi-Directional Discovery**: Support for traditional Drug-to-Pathway analysis and new **Reverse Discovery** (Target-to-Drug and Disease-to-Drug).
+- **Statistical Rigor**: Implemented Monte Carlo permutation testing (1,000 iterations) to calculate **Z-Scores**, neutralizing "hub bias" in pathway hits.
+- **Interactome Expansion**: Automatic retrieval of high-affinity interactors via String-DB to deepen the biological context of single-target drugs.
+- **Tissue Contextualization**: GTEx integration allows filtering pathways by tissue-specific expression (TPM > 10.0).
+- **Mechanism Synthesis**: Automated generation of "Mechanism Narratives" explaining systemic flow from targets to pathways.
+- **Analytical Plotting**: Integrated R-based visualization for discovery quadrant analysis (Surprise Score vs. Z-Score).
 
 ---
 
-## Installation
+## 🛠️ Installation
 
-1.  **Clone the Repository**:
-    ```bash
-    git clone https://github.com/kostassdrakas01/DrugRepurposing.git
-    cd DrugRepurposing
-    ```
-
-2.  **Setup Environment**:
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows: venv\Scripts\activate
-    pip install -r requirements.txt
-    ```
-
----
-
-## Usage
-
-Analyze any drug to discover its extended bio-network:
+### Prerequisites
+- Python 3.9+ (Fully compatible with Python 3.13)
+- R (for analytical plotting)
+- Virtual Environment (recommended)
 
 ```bash
-# Basic analysis
-python main.py "Aspirin"
+git clone https://github.com/kostassdrakas01/DrugRepurposing.git
+cd DrugRepurposing
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-# Tissue-specific discovery with expression thresholding
-python main.py "Sirolimus" --tissue "Brain_Cortex"
+---
 
-# Export a custom report
-python main.py "Metformin" --export metformin_analysis.md
+## 📖 Usage
+
+### 1. Traditional Discovery (Drug → Pathways)
+Analyze a specific drug and its systemic impact.
+```bash
+python main.py "Osimertinib" --tissue "Lung"
+```
+
+### 2. Reverse Discovery (Target → Drugs)
+Find all approved drugs for a target and analyze their networks.
+```bash
+python main.py --target "EGFR" --tissue "Lung"
+```
+
+### 3. Reverse Discovery (Disease → Drugs)
+Batch analyze drugs associated with a specific clinical indication.
+```bash
+python main.py --disease "Alzheimer" --tissue "Brain_Cortex"
+```
+
+---
+
+## ⌨️ Command-Line Interface (CLI) Reference
+
+| Argument | Description | Example |
+| :--- | :--- | :--- |
+| `drug` | **(Positional)** Name of the drug to analyze. | `python main.py "Aspirin"` |
+| `--disease` | Name of a disease to find drugs for (Reverse Discovery). | `--disease "Alzheimer"` |
+| `--target` | Name of a protein target to find drugs for (Gene Symbol). | `--target "EGFR"` |
+| `--tissue` | GTEx Tissue IDs to filter for expressed genes (TPM > 10). | `--tissue "Lung" "Brain_Cortex"` |
+| `--repurpose` | **(Flag)** Enables Network-Based Discovery for non-obvious leads. | `--repurpose` |
+| `--export` | Custom filename for the generated Markdown report. | `--export "my_report.md"` |
+
+---
+
+### 4. Analytical Visualization
+After running the Python discovery, generate the analytical plots using R:
+```bash
+Rscript plot_results.R results/Osimertinib.csv
 ```
 
 ### Supported Tissue Contexts
@@ -56,13 +85,14 @@ For a full list of supported GTEx tissue IDs, see [GTEX_TISSUE_LIST.md](GTEX_TIS
 
 ---
 
-## Outputs and Insights
+## 📂 Output
 
 All discoveries are saved in the results/ directory:
 
 1.  **Discovery Reports (.md)**: Comprehensive summaries including Discovery Scores (Surprise + Z-Score), Polarity, and Mechanism Narratives.
-2.  **Systemic Ripple Flows (.html)**: Interactive Sankey diagrams showing the flow from Drug -> Target -> Functional Bridge -> Outcome.
-3.  **Visual Diagnostics (.jpg)**: Heatmaps and Network graphs illustrating protein hubs and pathway convergence.
+2.  **Raw Discovery Data (.csv)**: Structured data for statistical analysis.
+3.  **Systemic Visuals (.jpg)**: Sankey diagrams, Hub analysis, and Heatmaps.
+4.  **Analytical Plots (.png)**: Quadrant analysis and statistical validation.
 
 ---
 

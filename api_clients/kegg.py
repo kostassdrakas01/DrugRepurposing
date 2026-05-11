@@ -156,3 +156,31 @@ class KEGGClient:
         if highlighted_genes:
             return f"{base}+{'+'.join(highlighted_genes)}"
         return base
+
+    def get_genes_by_pathway(self, pathway_id: str) -> List[str]:
+        """Fetches all gene symbols associated with a KEGG pathway."""
+        try:
+            r = self.session.get(f"{self.BASE_URL}/get/{pathway_id}", timeout=10)
+            if r.status_code == 200:
+                lines = r.text.split("\n")
+                genes = []
+                in_gene_section = False
+                for line in lines:
+                    if line.startswith("GENE"):
+                        in_gene_section = True
+                        parts = line.split()
+                        if len(parts) > 2:
+                            # Extract symbol (e.g. 1234  EGFR; description)
+                            sym = parts[2].split(";")[0].split(",")[0]
+                            genes.append(sym)
+                    elif in_gene_section and line.startswith(" "):
+                        parts = line.split()
+                        if len(parts) > 1:
+                            sym = parts[1].split(";")[0].split(",")[0]
+                            genes.append(sym)
+                    elif in_gene_section:
+                        break
+                return genes
+        except Exception as e:
+            print(f"Error fetching genes for pathway {pathway_id}: {e}")
+        return []
