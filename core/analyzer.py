@@ -12,13 +12,16 @@ from api_clients import (
 )
 from core.models import (
     DrugAnalysis, 
+    DiseaseAnalysis,
+    SynergyResult,
     Target, 
     Pathway, 
     Bottleneck, 
     DiscoveryInsight, 
     CentralityNode, 
     PerturbationResult,
-    ConvergenceGroup
+    ConvergenceGroup,
+    SimulationResult
 )
 
 class DrugPathwayAnalyzer:
@@ -33,6 +36,148 @@ class DrugPathwayAnalyzer:
         self.tissue_mask = tissue_mask
         self.global_graph = nx.DiGraph()
 
+    def analyze_disease(self, disease_name: str) -> DiseaseAnalysis:
+        print(f"[*] Starting Reverse Discovery for disease: {disease_name}...")
+        analysis = DiseaseAnalysis(disease_name=disease_name)
+
+        # 1. Map Disease to Pathways
+        pathways_found = self.kegg.find_pathways(disease_name)
+        if not pathways_found:
+            print(f"[!] No direct pathways found for {disease_name}. Searching broader categories.")
+            # Try to find some common ones or just exit
+            return analysis
+
+        print(f"[*] Found {len(pathways_found)} pathways. Identifying Master Regulators...")
+
+        all_master_regulators = []
+        pathway_objs = []
+
+        for p_info in pathways_found[:3]: # Limit to top 3 for performance
+            pid = p_info['id']
+            p_meta = self.kegg.get_pathway_info(pid)
+
+            kgml = self.kegg.get_kgml_pathway(pid)
+            genes = []
+            if kgml:
+                genes = [e.name.split()[0] for e in kgml.entries.values() if e.type == "gene"]
+
+            pathway_obj = Pathway(
+                id=pid,
+                name=p_meta.get("name", p_info['name']),
+                description=p_meta.get("description", ""),
+                genes=genes
+            )
+            pathway_objs.append(pathway_obj)
+
+            # Build local graph for this pathway to find hubs
+            local_graph = nx.DiGraph()
+            if kgml:
+                entry_map = {entry.id: entry for entry in kgml.entries.values()}
+                for rel in kgml.relations:
+                    s_id = rel.entry1.id if hasattr(rel.entry1, "id") else rel.entry1
+                    t_id = rel.entry2.id if hasattr(rel.entry2, "id") else rel.entry2
+                    if s_id in entry_map and t_id in entry_map:
+                        s_name = entry_map[s_id].name.split()[0]
+                        t_name = entry_map[t_id].name.split()[0]
+                        local_graph.add_edge(s_name, t_name)
+
+            if local_graph.number_of_nodes() > 0:
+                centrality = nx.degree_centrality(local_graph)
+                sorted_c = sorted(centrality.items(), key=lambda x: x[1], reverse=True)
+                for node, score in sorted_c[:5]:
+                    if score > 0:
+                        human_name = self.kegg.get_entity_name(node)
+                        all_master_regulators.append(CentralityNode(
+                            name=human_name, score=score, role="Master Regulator", connections=[]
+                        ))
+
+        analysis.pathways = pathway_objs
+        analysis.master_regulators = sorted(all_master_regulators, key=lambda x: x.score, reverse=True)[:10]
+
+        # 3. Query for Drugs
+        print(f"[*] Searching for drugs targeting identified hubs...")
+        suggested_drugs = []
+        seen_drug_names = set()
+        for regulator in analysis.master_regulators:
+            if regulator.name == "Unknown": continue
+            drugs = self.opentargets.get_drugs_by_target(regulator.name, limit=3)
+            for drug in drugs:
+                if drug['name'] not in seen_drug_names:
+                    suggested_drugs.append({
+                        "name": drug['name'],
+                        "target": regulator.name,
+                        "id": drug['id']
+                    })
+                    seen_drug_names.add(drug['name'])
+
+        analysis.suggested_drugs = suggested_drugs
+        return analysis
+
+    def analyze_combination(self, drug_names: List[str], tissue: str = None) -> DrugAnalysis:
+        print(f"[*] Analyzing multi-drug combination: {' + '.join(drug_names)}...")
+        from core.synergy import SynergyCalculator
+
+        # Analyze each drug individually first
+        analyses = [self.analyze_drug(name, tissue=tissue) for name in drug_names]
+
+        # Merge analyses (simplified)
+        main_analysis = analyses[0]
+        main_analysis.drug_name = " + ".join(drug_names)
+
+        for other in analyses[1:]:
+            main_analysis.targets.extend(other.targets)
+            # Merge pathways (keep highest discovery score)
+            for pid, p in other.pathways.items():
+                if pid in main_analysis.pathways:
+                    if p.discovery_score > main_analysis.pathways[pid].discovery_score:
+                        main_analysis.pathways[pid] = p
+                else:
+                    main_analysis.pathways[pid] = p
+
+            # Merge appendix
+            for pid, p in other.appendix_pathways.items():
+                if pid not in main_analysis.pathways and pid not in main_analysis.appendix_pathways:
+                    main_analysis.appendix_pathways[pid] = p
+
+        # Recalculate global graph with all targets
+        self._build_global_graph(main_analysis)
+
+        # Calculate Synergy if there are exactly 2 drugs
+        if len(analyses) == 2:
+            synergy_data = SynergyCalculator.calculate_synergy(analyses[0], analyses[1], self.global_graph)
+            main_analysis.synergy = SynergyResult(**synergy_data)
+
+        return main_analysis
+
+    def _run_dynamic_simulation(self, analysis: DrugAnalysis):
+        """Converts global graph to Boolean Network and simulates drug impact."""
+        from core.simulation import BooleanNetworkSimulator
+        sim = BooleanNetworkSimulator(self.global_graph)
+
+        drug_impacts = {}
+        for t in analysis.targets:
+            if t.kegg_id:
+                impact = -1.0
+                if any(x in t.action_type.upper() for x in ["ACTIVATOR", "AGONIST", "STIMULATOR"]):
+                    impact = 1.0
+                drug_impacts[t.kegg_id.split(':')[-1] if ':' in t.kegg_id else t.kegg_id] = impact
+
+        # Map to nodes in graph (which are often symbol-based or short IDs)
+        mapped_impacts = {}
+        for node in self.global_graph.nodes():
+            for tid, val in drug_impacts.items():
+                if tid in node:
+                    mapped_impacts[node] = val
+
+        shifts = sim.predict_shift(mapped_impacts)
+
+        for s in shifts[:10]:
+            analysis.simulations.append(SimulationResult(
+                node_name=self.kegg.get_entity_name(s['node']),
+                shift_direction="Activated (Steady-State)" if s['to'] else "Inhibited (Steady-State)",
+                pathway_context="Global Bio-Network"
+            ))
+
     def analyze_drug(self, drug_name: str, tissue: str = None) -> DrugAnalysis:
         print(f"[*] Starting systemic discovery for {drug_name}...")
         # 1. Resolve Drug to IDs
@@ -42,7 +187,7 @@ class DrugPathwayAnalyzer:
         if not cid and not chembl_id:
             raise ValueError(f"Could not resolve drug: {drug_name}")
 
-        analysis = DrugAnalysis(drug_name=drug_name, cid=cid or 0, target_tissue=tissue)
+        analysis = DrugAnalysis(drug_name=drug_name, cid=cid or 0, chembl_id=chembl_id, target_tissue=tissue)
 
         # 2. Get Targets
         print(f"[*] Resolving molecular targets...")
@@ -171,8 +316,17 @@ class DrugPathwayAnalyzer:
         analysis.centrality = self._calculate_centrality(analysis)
         analysis.perturbations = self._simulate_perturbations(analysis)
         
-        # 7. Predictive Flow (Sankey)
+        # 7. Dynamic Simulation
+        print("[*] Running dynamic Boolean Network simulation...")
+        self._run_dynamic_simulation(analysis)
+
+        # 8. Predictive Flow (Sankey)
         analysis.sankey_data = self._generate_sankey_data(analysis)
+
+        # 9. Toxicity Profiling
+        if analysis.chembl_id:
+            print("[*] Fetching toxicity profile (Adverse Events)...")
+            analysis.adverse_events = self.opentargets.get_adverse_events(analysis.chembl_id)
 
         # 8. Functional Mechanism Narratives (Directive: Mechanism Narratives)
         print("[*] Generating functional mechanism narratives...")

@@ -75,6 +75,86 @@ class OpenTargetsClient:
             pass
         return []
 
+    def get_drugs_by_target(self, symbol: str, limit: int = 5):
+        """Fetches drugs that target a specific gene symbol."""
+        # 1. Resolve Symbol to Ensembl ID
+        search_query = """
+        query search($symbol: String!) {
+          search(queryString: $symbol, entityNames: ["target"]) {
+            hits {
+              id
+            }
+          }
+        }
+        """
+        try:
+            r = self.session.post(self.URL, json={"query": search_query, "variables": {"symbol": symbol}}, timeout=10)
+            hits = r.json().get("data", {}).get("search", {}).get("hits", [])
+            if not hits: return []
+            ensembl_id = hits[0]["id"]
+
+            query = """
+            query target($ensemblId: String!) {
+              target(ensemblId: $ensemblId) {
+                drugAndClinicalCandidates {
+                    rows {
+                      drug {
+                        id
+                        name
+                      }
+                    }
+                }
+              }
+            }
+            """
+            variables = {"ensemblId": ensembl_id}
+            response = self.session.post(self.URL, json={"query": query, "variables": variables}, timeout=15)
+            if response.status_code == 200:
+                data = response.json()
+                rows = data.get("data", {}).get("target", {}).get("drugAndClinicalCandidates", {}).get("rows", [])
+                drugs = []
+                seen = set()
+                for row in rows:
+                    drug_info = row.get("drug")
+                    if drug_info:
+                        name = drug_info.get("name")
+                        if name and name not in seen:
+                            drugs.append({"name": name, "id": drug_info.get("id")})
+                            seen.add(name)
+                            if len(drugs) >= limit:
+                                break
+                return drugs
+        except Exception as e:
+            print(f"Error fetching drugs for {symbol}: {e}")
+        return []
+
+    def get_adverse_events(self, chembl_id: str, limit: int = 10):
+        """Fetches adverse events for a drug."""
+        query = """
+        query drug($chemblId: String!) {
+          drug(chemblId: $chemblId) {
+            adverseEvents {
+              count
+              rows {
+                name
+                count
+                logLR
+              }
+            }
+          }
+        }
+        """
+        variables = {"chemblId": chembl_id}
+        try:
+            response = self.session.post(self.URL, json={"query": query, "variables": variables}, timeout=15)
+            if response.status_code == 200:
+                data = response.json()
+                rows = data.get("data", {}).get("drug", {}).get("adverseEvents", {}).get("rows", [])
+                return rows[:limit]
+        except Exception as e:
+            print(f"Error fetching adverse events for {chembl_id}: {e}")
+        return []
+
     def get_interactors(self, symbol: str, min_score: float = 0.9, limit: int = 5):
         """Fetches high-affinity interactors for a gene symbol."""
         # 1. Resolve Symbol to Ensembl ID
