@@ -1,7 +1,7 @@
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from core.models import DrugAnalysis
+from core.models import DrugAnalysis, DiseaseAnalysis, Pathway
 import datetime
 import os
 import pandas as pd
@@ -9,6 +9,38 @@ import pandas as pd
 class Visualizer:
     def __init__(self):
         self.console = Console()
+
+    def display_disease_analysis(self, analysis: DiseaseAnalysis):
+        self.console.print(Panel.fit(f"[bold magenta]Reverse Discovery: {analysis.disease_name}[/bold magenta]"))
+
+        # 1. Pathways
+        table = Table(title="Associated Disease Pathways")
+        table.add_column("ID", style="dim")
+        table.add_column("Name")
+        table.add_column("Genes Count", justify="right")
+
+        for p in analysis.pathways:
+            table.add_row(p.id, p.name, str(len(p.genes)))
+        self.console.print(table)
+
+        # 2. Master Regulators
+        table = Table(title="Master Regulators (Network Hubs)")
+        table.add_column("Protein Hub")
+        table.add_column("Centrality Score", justify="right")
+
+        for mr in analysis.master_regulators:
+            table.add_row(mr.name, f"{mr.score:.4f}")
+        self.console.print(table)
+
+        # 3. Suggested Drugs
+        table = Table(title="Suggested Drugs (Repurposing Candidates)")
+        table.add_column("Drug Name", style="bold green")
+        table.add_column("Target Protein")
+        table.add_column("Source ID", style="dim")
+
+        for drug in analysis.suggested_drugs:
+            table.add_row(drug['name'], drug['target'], drug['id'])
+        self.console.print(table)
 
     def display_analysis(self, analysis: DrugAnalysis):
         self.console.print(Panel.fit(
@@ -32,6 +64,34 @@ class Visualizer:
             h_table.add_row(p.name, p.category, f"[{pol_color}]{p.polarity}[/{pol_color}]", f"{p.discovery_score:.2f}", f"{p.z_score:.2f}")
         
         if discoveries: self.console.print(h_table)
+
+        # 2. Synergy Display
+        if analysis.synergy:
+            self.console.print(Panel.fit(
+                f"[bold yellow]COMBINATION SYNERGY PREDICTION[/bold yellow]\n"
+                f"Combined Score: [bold white]{analysis.synergy.combined_score:.2f}[/bold white] | "
+                f"Proximity Score: {analysis.synergy.proximity_score:.2f}\n"
+                f"[dim]{analysis.synergy.description}[/dim]",
+                border_style="yellow"
+            ))
+
+            if analysis.synergy.shared_pathways:
+                s_table = Table(title="Top Synergistic Pathway Hubs")
+                s_table.add_column("Pathway Name")
+                s_table.add_column("Synergy Potential", justify="center")
+                for sp in sorted(analysis.synergy.shared_pathways, key=lambda x: x['score'], reverse=True)[:5]:
+                    s_table.add_row(sp['name'], f"{sp['score']:.2f}")
+                self.console.print(s_table)
+
+        # 3. Simulation Display
+        if analysis.simulations:
+            sim_table = Table(title="Dynamic Simulation: Predicted Steady-State Shifts")
+            sim_table.add_column("Biological Node")
+            sim_table.add_column("Shift Direction", style="bold cyan")
+            sim_table.add_column("Context")
+            for sim in analysis.simulations[:10]:
+                sim_table.add_row(sim.node_name, sim.shift_direction, sim.pathway_context)
+            self.console.print(sim_table)
 
     def export_report(self, analysis: DrugAnalysis, filename: str, include_details: bool = False):
         """Saves enhanced Markdown discovery report."""
@@ -139,8 +199,24 @@ class Visualizer:
                 f.write(f"| {clean_name} | {p.category} | {p.discovery_score:.2f} |\n")
             f.write("\n")
 
+            if analysis.adverse_events:
+                f.write("## IV. TOXICITY PROFILE (FDA ADVERSE EVENTS)\n")
+                f.write("| Adverse Event | Report Count | Log Likelihood Ratio |\n")
+                f.write("|---|---|---|\n")
+                for ae in analysis.adverse_events[:10]:
+                    f.write(f"| {ae['name'].capitalize()} | {ae['count']} | {ae['logLR']:.2f} |\n")
+                f.write("\n")
+
+            if analysis.simulations:
+                f.write("## V. DYNAMIC SIMULATION: STEADY-STATE SHIFTS\n")
+                f.write("| Biological Node | Shift Direction | Context |\n")
+                f.write("|---|---|---|\n")
+                for sim in analysis.simulations[:15]:
+                    f.write(f"| {sim.node_name} | **{sim.shift_direction}** | {sim.pathway_context} |\n")
+                f.write("\n")
+
             f.write("--- \n")
-            f.write("## IV. KNOWN & EXPECTED EFFECTS (APPENDIX)\n")
+            f.write("## VI. KNOWN & EXPECTED EFFECTS (APPENDIX)\n")
             f.write("| Known Mechanism | Logic | Evidence |\n")
             f.write("|---|---|---|\n")
             # Logic: Pathways with low discovery score or exact matches

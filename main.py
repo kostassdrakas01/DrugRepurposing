@@ -7,7 +7,8 @@ from rich.panel import Panel
 
 def main():
     parser = argparse.ArgumentParser(description="Drug-to-Pathway Predictive Discovery Engine")
-    parser.add_argument("drug", help="Name of the drug to analyze (e.g., Aspirin, Thalidomide)")
+    parser.add_argument("drug", nargs="*", help="Name(s) of the drug(s) to analyze (e.g., Aspirin, Thalidomide)")
+    parser.add_argument("--disease", help="Name of a disease for Reverse Discovery (e.g., 'Alzheimer')")
     parser.add_argument("--export", help="Filename for the Discovery Report (default: <drug_name>.md)")
     parser.add_argument("--tissue", nargs="+", help="GTEx Tissue mask(s) (e.g., Lung Brain_Cortex) to filter irrelevant pathways")
     
@@ -23,11 +24,27 @@ def main():
     sankey_visuals = SankeyVisualizer("results")
     
     try:
-        with console.status(f"[bold green]Predicting Bio-Network for {args.drug}...") as status:
+        if args.disease:
+            with console.status(f"[bold magenta]Running Reverse Discovery for {args.disease}...") as status:
+                analysis = analyzer.analyze_disease(args.disease)
+            visualizer.display_disease_analysis(analysis)
+            return
+
+        if not args.drug:
+            parser.print_help()
+            return
+
+        # Handle multiple drugs
+        drug_name = " + ".join(args.drug)
+        with console.status(f"[bold green]Predicting Bio-Network for {drug_name}...") as status:
             if args.tissue:
                 status.update(f"[bold green]Applying GTEx Context: {args.tissue} (TPM > 10.0)...")
-            analysis = analyzer.analyze_drug(args.drug, tissue=args.tissue[0] if args.tissue else None)
-        
+
+            if len(args.drug) == 1:
+                analysis = analyzer.analyze_drug(args.drug[0], tissue=args.tissue[0] if args.tissue else None)
+            else:
+                analysis = analyzer.analyze_combination(args.drug, tissue=args.tissue[0] if args.tissue else None)
+
         # 1. Console Display
         visualizer.display_analysis(analysis)
         
@@ -37,7 +54,8 @@ def main():
             sankey_visuals.generate_sankey(analysis)
         
         # 3. Export Unified Discovery Report (Markdown + Embedded Visuals)
-        export_path = args.export or f"{args.drug}.md"
+        export_name = args.export or ("_".join(args.drug) + ".md")
+        export_path = export_name
         if not os.path.isabs(export_path) and not export_path.startswith("results/"):
             export_path = os.path.join("results", export_path)
         

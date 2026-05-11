@@ -1,0 +1,25 @@
+pathway_id,pathway_name,category,polarity,discovery_score,z_score,surprise_score,is_significant,target_count,targets
+hsa04921,Oxytocin signaling pathway,Signal Transduction,Inhibited (Predicted),0.8933095725545064,3.7321792348437492,0.81,True,1,PTGS2
+hsa04923,Regulation of lipolysis in adipocytes,Signal Transduction,Inhibited (Predicted),0.9037674879487015,6.003085626328934,0.81,True,2,PTGS2;PTGS1
+hsa04657,IL-17 signaling pathway,Signal Transduction,Inhibited (Predicted),0.8894386500715424,3.438200526759088,0.81,True,1,PTGS2
+hsa04723,Retrograde endocannabinoid signaling,Nervous System,Inhibited (Predicted),0.9834702335995598,5.786428831385525,0.9700000000000001,True,1,PTGS2
+hsa04625,C-type lectin receptor signaling pathway,Signal Transduction,Inhibited (Predicted),0.8854197292291714,3.2001376917436,0.81,True,1,PTGS2
+hsa04726,Serotonergic synapse,Nervous System,Activated (Disinhibition),0.9797968690379562,4.554886760287406,0.9700000000000001,True,2,PTGS2;PTGS1
+hsa04370,VEGF signaling pathway,Signal Transduction,Inhibited (Predicted),0.9021870285740692,5.174724898753342,0.81,True,1,PTGS2
+hsa05204,Chemical carcinogenesis,Human Diseases,Inhibited (Predicted),0.9845448046979615,7.000726010037486,0.9700000000000001,True,1,PTGS2
+hsa05010,Alzheimer disease,Neurodegenerative Diseases,Inhibited (Predicted),0.9405302667128143,2.326653354806591,0.9700000000000001,True,1,PTGS2
+hsa04668,TNF signaling pathway,Signal Transduction,Inhibited (Predicted),0.8771450370379021,2.83027506644022,0.81,True,1,PTGS2
+hsa04148,Efferocytosis,Signal Transduction,Inhibited,0.8760086824731224,2.7878801384382883,0.81,True,1,PTGS2
+hsa04064,NF-kappa B signaling pathway,Signal Transduction,Inhibited (Predicted),0.8767678259395179,2.8160247186546488,0.81,True,1,PTGS2
+hsa05140,Leishmaniasis,Human Diseases,Inhibited,0.9759518990059157,3.9937912568452743,0.9700000000000001,True,1,PTGS2
+hsa05163,Human cytomegalovirus infection,Human Diseases,Inhibited,0.5124293788598472,2.510271458611171,0.1,False,1,PTGS2
+hsa00590,Arachidonic acid metabolism,Metabolism,Inhibited,0.5469751215034698,5.101669043266824,0.1,False,2,PTGS2;PTGS1
+hsa05222,Small cell lung cancer,Human Diseases,Inhibited (Predicted),0.5403052893908364,3.923447797913312,0.1,False,1,PTGS2
+hsa05206,MicroRNAs in cancer,Human Diseases,Inhibited (Predicted),0.4649373644185345,1.5847397054132981,0.1,False,1,PTGS2
+hsa05165,Human papillomavirus infection,Human Diseases,Inhibited,0.5077047575961141,2.3815497351733588,0.1,False,1,PTGS2
+hsa05200,Pathways in cancer,Human Diseases,Inhibited (Predicted),0.45888990229704485,1.5013772921797677,0.1,False,1,PTGS2
+hsa01100,Metabolic pathways,Metabolism,Inhibited (Predicted),0.6994303518780626,0.19606852942901254,0.85,False,2,PTGS2;PTGS1
+hsa05022,Pathways of neurodegeneration,Neurodegenerative Diseases,Inhibited (Predicted),0.4821246614792202,1.8510413491987727,0.1,False,1,PTGS2
+hsa04611,Platelet activation,Signal Transduction,Inhibited,0.5326195421640835,3.323882183694894,0.1,False,1,PTGS1
+hsa05167,Kaposi sarcoma-associated herpesvirus infection,Human Diseases,Inhibited (Predicted),0.5157553458390677,2.6101300176976143,0.1,False,1,PTGS2
+hsa04913,Ovarian steroidogenesis,Signal Transduction,Inhibited (Predicted),0.5471870285740692,5.174724898753342,0.1,False,1,PTGS2

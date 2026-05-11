@@ -27,6 +27,21 @@ class KEGGClient:
             pass
         return ""
 
+    def find_pathways(self, query: str) -> List[Dict[str, str]]:
+        """Searches for pathways by keyword."""
+        result = self._get("pathway", "find", f"pathway/{query}")
+        pathways = []
+        for line in result.strip().split("\n"):
+            if "\t" in line:
+                parts = line.split("\t")
+                pathway_id = parts[0].replace("path:", "")
+                # Map 'map' to 'hsa' for human species
+                if pathway_id.startswith("map"):
+                    pathway_id = pathway_id.replace("map", "hsa", 1)
+                pathway_name = parts[1]
+                pathways.append({"id": pathway_id, "name": pathway_name})
+        return pathways
+
     def get_pathways_for_gene(self, kegg_gene_id: str) -> List[str]:
         """Finds pathways associated with a KEGG Gene ID."""
         if kegg_gene_id in self.gene_pathways_cache:
@@ -77,6 +92,7 @@ class KEGGClient:
                     records = raw.split("///")
                     for record in records:
                         e_found = None
+                        current_name = None
                         for line in record.split("\n"):
                             if line.startswith("ENTRY"):
                                 parts = line.split()
@@ -87,8 +103,10 @@ class KEGGClient:
                                             e_found = c_id
                                             break
                             if line.startswith("NAME") and e_found:
-                                name = line.replace("NAME", "").strip().split(";")[0]
-                                self.cache[e_found] = name
+                                current_name = line.replace("NAME", "").strip().split(";")[0]
+                                if "," in current_name: current_name = current_name.split(",")[0]
+                                if "(RefSeq)" in current_name: current_name = current_name.split("(RefSeq)")[1].strip()
+                                self.cache[e_found] = current_name
                                 break
             return [self.cache.get(eid, eid) for eid in entity_id]
 
@@ -100,6 +118,8 @@ class KEGGClient:
         for line in result.split("\n"):
             if line.startswith("NAME"):
                 name = line.replace("NAME", "").strip().split(";")[0]
+                if "," in name: name = name.split(",")[0]
+                if "(RefSeq)" in name: name = name.split("(RefSeq)")[1].strip()
                 break
         self.cache[entity_id] = name
         return name

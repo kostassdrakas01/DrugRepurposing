@@ -65,9 +65,31 @@ class ConvergenceGroup:
     description: str
 
 @dataclass
+class DiseaseAnalysis:
+    disease_name: str
+    pathways: List[Pathway] = field(default_factory=list)
+    master_regulators: List[CentralityNode] = field(default_factory=list)
+    suggested_drugs: List[Dict] = field(default_factory=list)
+
+@dataclass
+class SynergyResult:
+    combined_score: float
+    shared_pathways: List[Dict]
+    proximity_score: float
+    description: str
+
+@dataclass
+class SimulationResult:
+    node_name: str
+    shift_direction: str # 'Flipped to Active', 'Flipped to Inactive'
+    pathway_context: str
+
+@dataclass
 class DrugAnalysis:
     drug_name: str
     cid: int
+    chembl_id: Optional[str] = None
+    synergy: Optional[SynergyResult] = None
     target_tissue: Optional[str] = None # GTEx tissue ID
     targets: List[Target] = field(default_factory=list)
     pathways: Dict[str, Pathway] = field(default_factory=dict)
@@ -78,5 +100,7 @@ class DrugAnalysis:
     centrality: List[CentralityNode] = field(default_factory=list)
     perturbations: List[PerturbationResult] = field(default_factory=list)
     convergence_groups: List[ConvergenceGroup] = field(default_factory=list)
+    simulations: List[SimulationResult] = field(default_factory=list)
+    adverse_events: List[Dict] = field(default_factory=list)
     sankey_data: Dict = field(default_factory=dict)
     confidence_badge: str = "" # e.g. 'High Confidence'
